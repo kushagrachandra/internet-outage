@@ -1,9 +1,79 @@
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from datetime import datetime
+
 import pymysql
 
 from outage_monitor.config import MySQLConfig
+
+logger = logging.getLogger(__name__)
+
+# Common "connection lost" / network issues — safe to reopen and retry once.
+_TRANSIENT_MYSQL_CODES = frozenset(
+    {
+        2002,  # CR_CONNECTION_ERROR
+        2003,  # CR_CONN_HOST_ERROR
+        2006,  # CR_SERVER_GONE_ERROR
+        2013,  # CR_SERVER_LOST
+    }
+)
+
+
+def _is_transient_mysql(exc: Exception) -> bool:
+    if isinstance(exc, pymysql.err.InterfaceError):
+        return True
+    if isinstance(exc, (pymysql.err.OperationalError, pymysql.err.InternalError)):
+        code = exc.args[0] if exc.args else None
+        return code in _TRANSIENT_MYSQL_CODES
+    return False
+
+
+def ensure_connected(
+    conn: pymysql.connections.Connection,
+    cfg: MySQLConfig,
+) -> pymysql.connections.Connection:
+    """Keep using the same handle when healthy; replace it if ping/reconnect fails."""
+    try:
+        conn.ping(reconnect=True)
+        return conn
+    except pymysql.err.Error:
+        logger.warning("MySQL ping failed, opening a new connection", exc_info=True)
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return connect(cfg)
+
+
+def persist_with_retry(
+    conn: pymysql.connections.Connection,
+    cfg: MySQLConfig,
+    fn: Callable[[pymysql.connections.Connection], None],
+) -> pymysql.connections.Connection:
+    """Run a DB callback; on transient disconnect, reconnect once and retry."""
+    for attempt in range(2):
+        try:
+            conn = ensure_connected(conn, cfg)
+            fn(conn)
+            return conn
+        except (
+            pymysql.err.OperationalError,
+            pymysql.err.InternalError,
+            pymysql.err.InterfaceError,
+        ) as e:
+            if attempt == 0 and _is_transient_mysql(e):
+                logger.warning("MySQL transient error, reconnecting and retrying: %s", e)
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+                conn = connect(cfg)
+                continue
+            raise
+    raise RuntimeError("persist_with_retry: unreachable")
+
 
 def close_open_outages_at_restart(
     conn: pymysql.connections.Connection,
