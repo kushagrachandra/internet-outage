@@ -1,0 +1,18 @@
+[Unit]
+Description=Internet connectivity outage monitor (DNS + LAN ping to MySQL)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adjust paths and user for your deployment.
+# User=outage
+# Group=outage
+WorkingDirectory=/opt/internet-outage
+EnvironmentFile=-/etc/outage-monitor.env
+ExecStart=/opt/internet-outage/.venv/bin/python -m outage_monitor
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
