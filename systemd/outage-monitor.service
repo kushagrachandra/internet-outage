@@ -10,7 +10,7 @@ Type=simple
 # Group=outage
 WorkingDirectory=/home/kushagra/Documents/projects/internet-outage
 EnvironmentFile=-/etc/outage-monitor.env
-ExecStart=/home/kushagra/Documents/projects/internet-outage/.venv/bin/python -m outage_monitor
+ExecStart=/home/kushagra/Documents/projects/internet-outage/.venv/bin/python -m outage_monitor > /home/kushagra/Documents/logs/outage_monitor.log
 Restart=on-failure
 RestartSec=5
 
