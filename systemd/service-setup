@@ -1,0 +1,42 @@
+On Ubuntu, the usual way is systemd: a service unit that starts at boot and restarts the process if it crashes. Your repo already includes an example.
+
+Use systemd (recommended on Ubuntu)
+Your project already ships a template at systemd/outage-monitor.service and env example at systemd/outage-monitor.env.example.
+
+1. Install the app on the server (example: /opt/internet-outage)
+
+Copy the project there, create a venv, install deps:
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+Apply schema.sql to MySQL.
+
+
+2. MySQL credentials
+
+Copy the example to /etc/outage-monitor.env, set real values, lock it down:
+sudo cp outage-monitor.env.example /etc/outage-monitor.env
+sudo chmod 600 /etc/outage-monitor.env
+sudo nano /etc/outage-monitor.env   # set MYSQL_* etc.
+
+
+3. Install the unit
+
+Edit paths in the unit file so they match your install (especially WorkingDirectory, ExecStart, and optionally User= / Group=).
+Copy to systemd and enable:
+sudo cp outage-monitor.service /etc/systemd/system/outage-monitor.service
+sudo systemctl daemon-reload
+sudo systemctl enable outage-monitor.service
+sudo systemctl start outage-monitor.service
+
+
+4. Check it
+
+sudo systemctl status outage-monitor.service
+journalctl -u outage-monitor.service -f
+enable makes it start at boot; WantedBy=multi-user.target ties it to normal multi-user boot.
+
+Notes
+
+After=network-online.target + Wants=network-online.target only helps ordering; DNS/MySQL still need to be reachable when the app runs.
+If MySQL is on the same machine, you may add After=mysql.service (exact name can vary: mariadb.service etc.).
+Optional: run as a dedicated user (User= / Group= in the unit) and ensure that user can read /etc/outage-monitor.env and run ping (usually fine on Ubuntu).
+If you want this tailored to your exact paths (e.g. home directory vs /opt), say where you put the project and whether MySQL is local or remote.
