@@ -8,9 +8,9 @@ Type=simple
 # Adjust paths and user for your deployment.
 # User=outage
 # Group=outage
-WorkingDirectory=/opt/internet-outage
+WorkingDirectory=/home/kushagra/Documents/projects/internet-outage
 EnvironmentFile=-/etc/outage-monitor.env
-ExecStart=/opt/internet-outage/.venv/bin/python -m outage_monitor
+ExecStart=/home/kushagra/Documents/projects/internet-outage/.venv/bin/python -m outage_monitor
 Restart=on-failure
 RestartSec=5
 
